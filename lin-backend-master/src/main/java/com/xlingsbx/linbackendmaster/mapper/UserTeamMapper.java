@@ -1,7 +1,8 @@
 package com.xlingsbx.linbackendmaster.mapper;
 
-import generator.domain.UserTeam;
+
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.xlingsbx.linbackendmaster.model.domain.UserTeam;
 
 /**
 * @author xiaoling
