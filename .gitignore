@@ -1,0 +1,41 @@
+# 说明：根目录 .idea/ 是 IntelliJ 项目配置（模块、编码、MyBatisX 模板），
+# 有意纳入版本控制，便于他人直接打开项目。仅忽略工作区和数据源配置。
+.idea/workspace.xml
+.idea/shelf/
+.idea/dataSources.local.xml
+
+*.iws
+*.iml
+*.ipr
+
+### Eclipse / STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Maven ###
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### Claude Code ###
+.claude/settings.local.json
+
+### OS ###
+.DS_Store
+Thumbs.db
