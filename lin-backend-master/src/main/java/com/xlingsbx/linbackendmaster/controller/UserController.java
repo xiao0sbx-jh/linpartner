@@ -130,7 +130,7 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User loginUser = userService.getLoginUser(request);
-        int result = userService.updateUser(user,loginUser);
+        int result = userService.updateUser(user, loginUser, request);
         return ResultUtils.success(result);
     }
 

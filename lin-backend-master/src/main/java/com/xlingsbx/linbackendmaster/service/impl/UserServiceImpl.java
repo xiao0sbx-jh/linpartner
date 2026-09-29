@@ -218,7 +218,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         queryWrapper.isNotNull("tags");
         List<User> userList = this.list(queryWrapper);
         //第 2 段：把当前登录用户的标签 JSON 字符串转成 List
-        String tags = loginUser.getTags();
+        // 注意：loginUser 来自 session，是登录那一刻的快照，可能不包含后来更新的标签，
+        // 因此这里重新查一次数据库，保证拿到最新的 tags
+        User currentUser = this.getById(loginUser.getId());
+        if (currentUser == null) {
+            throw new BusinessException(ErrorCode.NULL_ERROR, "用户不存在");
+        }
+        String tags = currentUser.getTags();
         Gson gson = new Gson();
         List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>() {
         }.getType());
@@ -238,15 +244,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             }
             List<String> userTagList = gson.fromJson(userTags, new TypeToken<List<String>>() {
             }.getType());
+            if (CollectionUtils.isEmpty(userTagList)) {
+                continue;
+            }
             // 计算分数
             long distance = AlgorithmUtils.minDistance(tagList, userTagList);
             list.add(new Pair<>(user, distance));
         }
 
         //第 5 段：排序，选出最相似的前 num 个人
+        // 用 Long.compare 而不是 (int) 强转，避免差值超过 int 范围时溢出导致排序错乱
         List<Pair<User, Long>> topUserPairList = list
                 .stream()
-                .sorted((a, b) -> (int) (a.getValue() - b.getValue()))
+                .sorted((a, b) -> Long.compare(a.getValue(), b.getValue()))
                 .limit(num)
                 .collect(Collectors.toList());
         // 第 6 段：提取排序后的用户 id 列表
@@ -291,7 +301,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     @Override
-    public int updateUser(User user, User loginUser) {
+    public int updateUser(User user, User loginUser, HttpServletRequest request) {
         if (user == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -313,7 +323,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             user.setUserPassword(null);
             user.setUserAccount(null);
         }
-        return userMapper.updateById(user);
+        int result = userMapper.updateById(user);
+        // 同步刷新 session 中的登录态，否则后续依赖 session 的逻辑
+        // （如智能匹配取 tags）拿到的仍是登录那一刻的旧快照
+        if (result > 0 && request != null) {
+            User updatedUser = userMapper.selectById(userId);
+            request.getSession().setAttribute(USER_LOGIN_STATE, getSafetyUser(updatedUser));
+        }
+        return result;
 
     }
 
