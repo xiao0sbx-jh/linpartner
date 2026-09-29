@@ -222,6 +222,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         Gson gson = new Gson();
         List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>() {
         }.getType());
+        if (CollectionUtils.isEmpty(tagList)) {
+            return new ArrayList<>();
+        }
         //第 3 段：准备一个容器，存放【用户 + 相似度分数】
         // 用户列表的下标 => 相似度
         List<Pair<User, Long>> list = new ArrayList<>();
@@ -230,7 +233,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             User user = userList.get(i);
             String userTags = user.getTags();
             // 无标签或者为当前用户自己
-            if (StringUtils.isBlank(userTags) || user.getId() == loginUser.getId()) {
+            if (StringUtils.isBlank(userTags) || Objects.equals(user.getId(), loginUser.getId())) {
                 continue;
             }
             List<String> userTagList = gson.fromJson(userTags, new TypeToken<List<String>>() {
@@ -251,20 +254,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 .stream()
                 .map(pair -> pair.getKey().getId())
                 .collect(Collectors.toList());
+        // 没有匹配到任何用户时直接返回，避免生成 IN () 非法 SQL
+        if (CollectionUtils.isEmpty(userIdList)) {
+            return new ArrayList<>();
+        }
         QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
         userQueryWrapper.in("id", userIdList);
-        // 1, 3, 2
-        // User1、User2、User3
-        // 1 => User1, 2 => User2, 3 => User3
         //第 7 段：根据 id 批量查询用户，转成 map 做顺序还原
         Map<Long, List<User>> userIdUserListMap = this.list(userQueryWrapper)
                 .stream()
-                .map(user -> getSafetyUser(user))
+                .map(this::getSafetyUser)
                 .collect(Collectors.groupingBy(User::getId));
         //第 8 段：还原顺序，组装最终结果
         List<User> finalUserList = new ArrayList<>();
         for (Long userId : userIdList) {
-            finalUserList.add(userIdUserListMap.get(userId).get(0));
+            List<User> users = userIdUserListMap.get(userId);
+            if (CollectionUtils.isEmpty(users)) {
+                continue;
+            }
+            finalUserList.add(users.get(0));
         }
         return finalUserList;
     }
@@ -284,16 +292,26 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public int updateUser(User user, User loginUser) {
+        if (user == null || user.getId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         long userId = user.getId();
         if (userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        if (user.getId()!=loginUser.getId()&&loginUser.getUserRole()!=UserConstant.ADMIN_ROLE) {
+        if (!Objects.equals(user.getId(), loginUser.getId()) && !isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
         User oldUser = userMapper.selectById(userId);
         if (oldUser == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR);
+        }
+        // 普通用户不允许修改自己的角色、状态、密码等敏感字段，防止越权提权
+        if (!isAdmin(loginUser)) {
+            user.setUserRole(null);
+            user.setUserStatus(null);
+            user.setUserPassword(null);
+            user.setUserAccount(null);
         }
         return userMapper.updateById(user);
 

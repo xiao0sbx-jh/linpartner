@@ -89,11 +89,14 @@ public class TeamController {
     }
 
     @GetMapping("/get")
-    public BaseResponse<Team> getTeam(@RequestParam long id) {
+    public BaseResponse<TeamUserVO> getTeam(@RequestParam long id, HttpServletRequest request) {
         if (id <= 0) throw new BusinessException(ErrorCode.PARAMS_ERROR);
         Team team = teamService.getById(id);
         if (team == null) throw new BusinessException(ErrorCode.NULL_ERROR);
-        return ResultUtils.success(team);
+        // 非队伍成员不允许查看加密队伍的密码
+        TeamUserVO teamUserVO = new TeamUserVO();
+        BeanUtils.copyProperties(team, teamUserVO);
+        return ResultUtils.success(teamUserVO);
     }
 
     @GetMapping("/list")
@@ -104,21 +107,25 @@ public class TeamController {
         boolean isAdmin = userService.isAdmin(request);
         // 1、查询队伍列表
         List<TeamUserVO> teamList = teamService.listTeams(teamQuery, isAdmin);
+        if (CollectionUtils.isEmpty(teamList)) {
+            return ResultUtils.success(new ArrayList<>());
+        }
         final List<Long> teamIdList = teamList.stream().map(TeamUserVO::getId).collect(Collectors.toList());
         // 2、判断当前用户是否已加入队伍
-        QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
         try {
             User loginUser = userService.getLoginUser(request);
+            QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
             userTeamQueryWrapper.eq("userId", loginUser.getId());
             userTeamQueryWrapper.in("teamId", teamIdList);
             List<UserTeam> userTeamList = userTeamService.list(userTeamQueryWrapper);
             // 已加入的队伍 id 集合
             Set<Long> hasJoinTeamIdSet = userTeamList.stream().map(UserTeam::getTeamId).collect(Collectors.toSet());
-            teamList.forEach(team -> {
-                boolean hasJoin = hasJoinTeamIdSet.contains(team.getId());
-                team.setHasJoin(hasJoin);
-            });
-        } catch (Exception e) {
+            teamList.forEach(team -> team.setHasJoin(hasJoinTeamIdSet.contains(team.getId())));
+        } catch (BusinessException e) {
+            // 未登录时忽略，仅不标记已加入状态
+            if (e.getCode() != ErrorCode.NOT_LOGIN.getCode()) {
+                throw e;
+            }
         }
         // 3、查询已加入队伍的人数
         QueryWrapper<UserTeam> userTeamJoinQueryWrapper = new QueryWrapper<>();
@@ -132,18 +139,21 @@ public class TeamController {
 
 
     @GetMapping("/list/page")
-    public BaseResponse<Page<Team>> listTeamsByPages(TeamQuery teamQuery) {
+    public BaseResponse<Page<TeamUserVO>> listTeamsByPages(TeamQuery teamQuery) {
         if (teamQuery == null) throw new BusinessException(ErrorCode.PARAMS_ERROR);
         Team team = new Team();
-        try {
-            BeanUtils.copyProperties(team,teamQuery );
-        } catch (BeansException e) {
-            throw new RuntimeException(e);
-        }
+        BeanUtils.copyProperties(teamQuery, team);
         Page<Team> page = new Page<>(teamQuery.getPageNum(), teamQuery.getPageSize());
         QueryWrapper<Team> queryWrapper = new QueryWrapper<>(team);
-        Page<Team> teamList = teamService.page(page,queryWrapper);
-        return  ResultUtils.success(teamList);
+        Page<Team> teamPage = teamService.page(page, queryWrapper);
+        // 转 VO，避免把队伍密码返回给前端
+        Page<TeamUserVO> voPage = new Page<>(teamPage.getCurrent(), teamPage.getSize(), teamPage.getTotal());
+        voPage.setRecords(teamPage.getRecords().stream().map(t -> {
+            TeamUserVO vo = new TeamUserVO();
+            BeanUtils.copyProperties(t, vo);
+            return vo;
+        }).collect(Collectors.toList()));
+        return ResultUtils.success(voPage);
     }
 
     @PostMapping("/join")
@@ -212,6 +222,10 @@ public class TeamController {
         Map<Long, List<UserTeam>> listMap = userTeamList.stream()
                 .collect(Collectors.groupingBy(UserTeam::getTeamId));
         List<Long> idList = new ArrayList<>(listMap.keySet());
+        // 没有加入任何队伍时直接返回空，避免 idList 为空导致查出全部队伍
+        if (CollectionUtils.isEmpty(idList)) {
+            return ResultUtils.success(new ArrayList<>());
+        }
         teamQuery.setIdList(idList);
         List<TeamUserVO> teamList = teamService.listTeams(teamQuery, true);
         return ResultUtils.success(teamList);

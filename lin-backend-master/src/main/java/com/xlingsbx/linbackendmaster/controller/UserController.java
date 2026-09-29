@@ -51,7 +51,7 @@ public class UserController {
         String checkPassword = userRegisterRequest.getCheckPassword();
         String planetCode = userRegisterRequest.getPlanetCode();
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword, planetCode)) {
-            return null;
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
         }
         long result = userService.userRegister(userAccount, userPassword, checkPassword, planetCode);
         return ResultUtils.success(result);
@@ -86,7 +86,7 @@ public class UserController {
         Object objuser = request.getSession().getAttribute(USER_LOGIN_STATE);
         User curUser = (User) objuser;
         if (curUser == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            throw new BusinessException(ErrorCode.NOT_LOGIN);
         }
 
         long userId = curUser.getId();
@@ -100,7 +100,7 @@ public class UserController {
     @PostMapping("/search")
     public BaseResponse<List<User>> searchUsers(String username, HttpServletRequest request) {
         if(!userService.isAdmin(request)){
-            throw new BusinessException(ErrorCode.NO_AUTH, "有权限吗你小b");
+            throw new BusinessException(ErrorCode.NO_AUTH);
         }
 
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
@@ -134,8 +134,8 @@ public class UserController {
         return ResultUtils.success(result);
     }
 
-    @PostMapping("/delecet")
-    public BaseResponse<Boolean> delecetUser(@RequestBody long id, HttpServletRequest request) {
+    @PostMapping("/delete")
+    public BaseResponse<Boolean> deleteUser(@RequestBody long id, HttpServletRequest request) {
         if (id <= 0) {
             return ResultUtils.error(ErrorCode.PARAMS_ERROR);
         }
@@ -151,23 +151,36 @@ public class UserController {
     @GetMapping("/recommend")
     public BaseResponse<Page<User>> recommendUsers(long pageSize, long pageNum, HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
-        String redisKey = String.format("xiaoling:user:recommend:%s", loginUser.getId());
+        // 分页参数校验，避免超大 pageSize 拖垮数据库
+        pageSize = Math.min(Math.max(pageSize, 1), 50);
+        pageNum = Math.max(pageNum, 1);
+        // 缓存 key 需区分分页参数，否则换页会拿到第一页的缓存
+        String redisKey = String.format("xiaoling:user:recommend:%s:%s:%s",
+                loginUser.getId(), pageNum, pageSize);
         ValueOperations<String, Object> valueOperations = redisTemplate.opsForValue();
         // 如果有缓存，直接读缓存
-        Page<User> userPage = (Page<User>) valueOperations.get(redisKey);
-        if (userPage != null) {
-            return ResultUtils.success(userPage);
+        try {
+            Page<User> userPage = (Page<User>) valueOperations.get(redisKey);
+            if (userPage != null) {
+                return ResultUtils.success(userPage);
+            }
+        } catch (Exception e) {
+            log.error("redis get key error", e);
         }
         // 无缓存，查数据库
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        userPage = userService.page(new Page<>(pageNum, pageSize), queryWrapper);
-        // 写缓存
+        Page<User> userPage = userService.page(new Page<>(pageNum, pageSize), queryWrapper);
+        // 写缓存，缓存的是脱敏后的用户数据
+        Page<User> safetyPage = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
+        safetyPage.setRecords(userPage.getRecords().stream()
+                .map(user -> userService.getSafetyUser(user))
+                .collect(Collectors.toList()));
         try {
-            valueOperations.set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
+            valueOperations.set(redisKey, safetyPage, 30000, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             log.error("redis set key error", e);
         }
-        return ResultUtils.success(userPage);
+        return ResultUtils.success(safetyPage);
     }
 
     @GetMapping("/match")

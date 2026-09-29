@@ -40,26 +40,27 @@ public class PreCacheJob {
         try {
             // 只有一个线程能获取到锁
             if (lock.tryLock(0, -1, TimeUnit.MILLISECONDS)) {
-                System.out.println("getLock: " + Thread.currentThread().getId());
+                log.debug("precache getLock: {}", Thread.currentThread().getId());
                 for (Long userId : mainUserList) {
                     QueryWrapper<User> queryWrapper = new QueryWrapper<>();
                     Page<User> userPage = userService.page(new Page<>(1, 20), queryWrapper);
-                    String redisKey = String.format("xiaoling:user:recommend:%s", userId);
+                    // 缓存 key 与 UserController#recommendUsers 保持一致（第 1 页）
+                    String redisKey = String.format("xiaoling:user:recommend:%s:%s:%s", userId, 1, 20);
                     ValueOperations<String, Object> valueOperations = redisTemplate.opsForValue();
-                    // 写缓存
+                    // 写缓存，缓存 24 小时直到下次调度
                     try {
-                        valueOperations.set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
+                        valueOperations.set(redisKey, userPage, 24, TimeUnit.HOURS);
                     } catch (Exception e) {
                         log.error("redis set key error", e);
                     }
                 }
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             log.error("doCacheRecommendUser error", e);
         } finally {
             // 只能释放自己的锁
             if (lock.isHeldByCurrentThread()) {
-                System.out.println("unLock: " + Thread.currentThread().getId());
                 lock.unlock();
             }
         }
