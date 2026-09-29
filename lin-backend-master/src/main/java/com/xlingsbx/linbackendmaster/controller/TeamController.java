@@ -12,6 +12,8 @@ import com.xlingsbx.linbackendmaster.model.domain.User;
 import com.xlingsbx.linbackendmaster.model.domain.UserTeam;
 import com.xlingsbx.linbackendmaster.model.dto.TeamQuery;
 import com.xlingsbx.linbackendmaster.model.request.TeamAddRequest;
+import com.xlingsbx.linbackendmaster.model.request.TeamJoinRequest;
+import com.xlingsbx.linbackendmaster.model.request.TeamUpdateRequest;
 import com.xlingsbx.linbackendmaster.model.vo.TeamUserVO;
 import com.xlingsbx.linbackendmaster.service.TeamService;
 import com.xlingsbx.linbackendmaster.service.UserService;
@@ -67,11 +69,14 @@ public class TeamController {
     }
 
     @PostMapping("/update")
-    public BaseResponse<Boolean> updateTeam(@RequestBody Team team) {
-        if (team == null) throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        boolean res = teamService.updateById(team);
-        if (!res) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR,"删除失败");
+    public BaseResponse<Boolean> updateTeam(@RequestBody TeamUpdateRequest teamUpdateRequest, HttpServletRequest request) {
+        if (teamUpdateRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = userService.getLoginUser(request);
+        boolean result = teamService.updateTeam(teamUpdateRequest, loginUser);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新失败");
         }
         return ResultUtils.success(true);
     }
@@ -132,6 +137,16 @@ public class TeamController {
         QueryWrapper<Team> queryWrapper = new QueryWrapper<>(team);
         Page<Team> teamList = teamService.page(page,queryWrapper);
         return  ResultUtils.success(teamList);
+    }
+
+    @PostMapping("/join")
+    public BaseResponse<Boolean> joinTeam(@RequestBody TeamJoinRequest teamJoinRequest, HttpServletRequest request) {
+        if (teamJoinRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = userService.getLoginUser(request);
+        boolean result = teamService.joinTeam(teamJoinRequest, loginUser);
+        return ResultUtils.success(result);
     }
 
 

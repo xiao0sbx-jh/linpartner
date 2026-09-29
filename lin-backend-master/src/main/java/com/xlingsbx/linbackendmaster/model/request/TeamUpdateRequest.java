@@ -5,12 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
 
-/**
- * 队伍更新请求体
- *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
- */
+
 @Data
 public class TeamUpdateRequest implements Serializable {
 
@@ -41,10 +36,10 @@ public class TeamUpdateRequest implements Serializable {
      */
     private Integer status;
 
+    private Integer maxNum;
+
     /**
      * 密码
      */
     private String password;
 }
-
-// 负责人【yupi】 https://space.bilibili.com/12890453/

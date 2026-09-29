@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.xlingsbx.linbackendmaster.model.domain.Team;
 import com.xlingsbx.linbackendmaster.model.domain.User;
 import com.xlingsbx.linbackendmaster.model.dto.TeamQuery;
+import com.xlingsbx.linbackendmaster.model.request.TeamJoinRequest;
+import com.xlingsbx.linbackendmaster.model.request.TeamUpdateRequest;
 import com.xlingsbx.linbackendmaster.model.vo.TeamUserVO;
 
 import java.util.List;
@@ -19,4 +21,8 @@ public interface TeamService extends IService<Team> {
 
 
     List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin);
+
+    boolean updateTeam(TeamUpdateRequest teamUpdateRequest, User loginUser);
+
+    boolean joinTeam(TeamJoinRequest teamJoinRequest, User loginUser);
 }

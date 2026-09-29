@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- @author <a href="https://github.com/liyupi">程序员鱼皮</a> -->
-<!-- @from <a href="https://yupi.icu">编程导航知识星球</a> -->
+
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
@@ -10,11 +9,11 @@
         <version>2.6.4</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.yupi</groupId>
-    <artifactId>yupao-backend</artifactId>
+    <groupId>com.xiaoling</groupId>
+    <artifactId>xiaoling-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>yupao-backend</name>
-    <description>yupao-backend</description>
+    <name>xiaoling-backend</name>
+    <description>xiaoling-backend</description>
     <properties>
         <java.version>1.8</java.version>
     </properties>
