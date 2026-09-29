@@ -292,7 +292,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public int updateUser(User user, User loginUser) {
-        if (user == null || user.getId() == null) {
+        if (user == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         long userId = user.getId();

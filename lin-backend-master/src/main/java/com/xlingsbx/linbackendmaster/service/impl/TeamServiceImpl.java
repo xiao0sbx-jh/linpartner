@@ -18,6 +18,7 @@ import com.xlingsbx.linbackendmaster.model.vo.UserVO;
 import com.xlingsbx.linbackendmaster.service.TeamService;
 import com.xlingsbx.linbackendmaster.service.UserService;
 import com.xlingsbx.linbackendmaster.service.UserTeamService;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RLock;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 * @createDate 2026-09-23 17:25:08
 */
 @Service
+@Slf4j
 public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     implements TeamService {
 
@@ -104,6 +106,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "超时时间 > 当前时间");
         }
         // 7. 校验用户最多创建 5 个队伍（按 userId 加锁，避免并发下超额创建）
+        // 注意：锁在事务提交前释放，理论上仍有极小竞态窗口；严格场景应把加锁放在事务外层（AOP 顺序控制）
         RLock lock = redissonClient.getLock("xiaoling:create_team:lock:" + userId);
         try {
             if (!lock.tryLock(0, -1, TimeUnit.MILLISECONDS)) {
@@ -289,6 +292,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean joinTeam(TeamJoinRequest teamJoinRequest, User loginUser) {
         if (teamJoinRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
