@@ -13,6 +13,7 @@ import {
   message,
   Modal,
   Form,
+  Pagination,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -20,14 +21,21 @@ import { listTeams, joinTeam } from '../../api/team';
 import { TEAM_STATUS, TEAM_STATUS_OPTIONS } from '../../constants';
 import TeamCard from '../../components/TeamCard';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
+
+const PAGE_SIZE = 12;
 
 /**
  * 队伍广场：浏览、搜索、加入队伍
+ *
+ * 数据量大时必须分页：后端最多返回 pageSize 条，
+ * 前端也只需要渲染当前页的卡片，避免一次性渲染上千个 DOM 节点导致卡顿。
  */
 export default function TeamListPage({ currentUser }) {
   const navigate = useNavigate();
   const [teams, setTeams] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [pageNum, setPageNum] = useState(1);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [status, setStatus] = useState(undefined);
@@ -41,18 +49,37 @@ export default function TeamListPage({ currentUser }) {
       const res = await listTeams({
         searchText: searchText || undefined,
         status,
+        pageNum,
+        pageSize: PAGE_SIZE,
       });
-      setTeams(res.data ?? []);
+      // 后端返回的是 MyBatis-Plus 的 Page 结构
+      setTeams(res.data?.records ?? []);
+      setTotal(res.data?.total ?? 0);
     } catch (e) {
       setTeams([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [searchText, status]);
+  }, [searchText, status, pageNum]);
 
   useEffect(() => {
     loadTeams();
   }, [loadTeams]);
+
+  // 改变筛选条件时回到第一页，避免停留在超出范围的页码上
+  const handleSearch = () => {
+    if (pageNum === 1) {
+      loadTeams();
+    } else {
+      setPageNum(1);
+    }
+  };
+
+  const handleStatusChange = (value) => {
+    setStatus(value);
+    setPageNum(1);
+  };
 
   const requireLogin = () => {
     if (!currentUser) {
@@ -115,7 +142,7 @@ export default function TeamListPage({ currentUser }) {
             placeholder="搜索队伍名称或描述"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            onPressEnter={loadTeams}
+            onPressEnter={handleSearch}
             prefix={<SearchOutlined />}
             style={{ width: 260 }}
             allowClear
@@ -123,14 +150,19 @@ export default function TeamListPage({ currentUser }) {
           <Select
             placeholder="队伍状态"
             value={status}
-            onChange={setStatus}
+            onChange={handleStatusChange}
             options={TEAM_STATUS_OPTIONS}
             style={{ width: 140 }}
             allowClear
           />
-          <Button type="primary" onClick={loadTeams}>
+          <Button type="primary" onClick={handleSearch}>
             查询
           </Button>
+          {total > 0 && (
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              共 {total} 支队伍
+            </Text>
+          )}
         </Space>
       </Card>
 
@@ -156,6 +188,19 @@ export default function TeamListPage({ currentUser }) {
           !loading && <Empty style={{ marginTop: 48 }} description="暂无队伍，快去创建一个吧" />
         )}
       </Spin>
+
+      {total > 0 && (
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <Pagination
+            current={pageNum}
+            pageSize={PAGE_SIZE}
+            total={total}
+            onChange={setPageNum}
+            showSizeChanger={false}
+            showQuickJumper
+          />
+        </div>
+      )}
 
       <Modal
         title={`加入队伍：${pendingTeam?.name ?? ''}`}

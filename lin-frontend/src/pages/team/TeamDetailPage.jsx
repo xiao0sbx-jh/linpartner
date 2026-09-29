@@ -57,8 +57,9 @@ export default function TeamDetailPage({ currentUser }) {
       const res = await getTeamById(id);
       setTeam(res.data);
       // 通过 listTeams 拿 hasJoin / hasJoinNum（get 接口不返回这些字段）
-      const listRes = await listTeams({ id });
-      const detail = listRes.data?.[0];
+      // 注意：/team/list 现在是分页接口，返回结构为 { records, total, ... }
+      const listRes = await listTeams({ id, pageNum: 1, pageSize: 1 });
+      const detail = listRes.data?.records?.[0];
       if (detail) {
         setTeam((prev) => ({ ...prev, ...detail }));
       }

@@ -37,12 +37,17 @@ export async function updateUser(user) {
 }
 
 /**
- * 根据标签搜索用户
- * 注意后端用 @RequestParam 接收 List<String>，所以要用数组形式的 query 参数
+ * 根据标签搜索用户（分页）
+ * 后端用 @RequestParam 接收 List<String>，所以要用数组形式的 query 参数
+ * @param {string[]} tagNameList 标签列表
+ * @param {number} pageNum 页码，从 1 开始
+ * @param {number} pageSize 每页条数
  */
-export async function searchUsersByTags(tagNameList) {
+export async function searchUsersByTags(tagNameList, pageNum = 1, pageSize = 12) {
   const params = new URLSearchParams();
   tagNameList.forEach((tag) => params.append('tagNameList', tag));
+  params.append('pageNum', pageNum);
+  params.append('pageSize', pageSize);
   return request.post(`/user/search/tag?${params.toString()}`);
 }
 

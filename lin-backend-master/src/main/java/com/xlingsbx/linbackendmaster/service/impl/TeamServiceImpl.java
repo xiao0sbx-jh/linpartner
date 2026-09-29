@@ -1,6 +1,7 @@
 package com.xlingsbx.linbackendmaster.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xlingsbx.linbackendmaster.common.ErrorCode;
 import com.xlingsbx.linbackendmaster.exception.BusinessException;
@@ -57,6 +58,11 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
 
     @Resource
     private RedissonClient redissonClient;
+
+    /**
+     * 单页最大条数，防止前端传入超大 pageSize 拖垮数据库
+     */
+    private static final long MAX_PAGE_SIZE = 50;
 
 
     @Override
@@ -147,6 +153,20 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
 
     @Override
     public List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin) {
+        return listTeams(teamQuery, isAdmin, false).getRecords();
+    }
+
+    @Override
+    public Page<TeamUserVO> listTeamsByPage(TeamQuery teamQuery, boolean isAdmin) {
+        return listTeams(teamQuery, isAdmin, true);
+    }
+
+    /**
+     * 队伍列表查询
+     *
+     * @param paged 是否分页。true 时使用数据库分页，false 时返回全部（用于"我创建的/我加入的"这类小结果集）
+     */
+    private Page<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin, boolean paged) {
         QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
         // 组合查询条件
         if (teamQuery != null)  {
@@ -197,9 +217,24 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         }
         // 不展示已过期的队伍：expireTime is null or expireTime > now()
         queryWrapper.and(qw -> qw.gt("expireTime", new Date()).or().isNull("expireTime"));
-        List<Team> teamList = this.list(queryWrapper);
+        // 按创建时间倒序，保证分页结果稳定
+        queryWrapper.orderByDesc("createTime", "id");
+
+        List<Team> teamList;
+        Page<TeamUserVO> resultPage;
+        if (paged && teamQuery != null) {
+            long pageNum = Math.max(teamQuery.getPageNum(), 1);
+            long pageSize = Math.min(Math.max(teamQuery.getPageSize(), 1), MAX_PAGE_SIZE);
+            Page<Team> teamPage = this.page(new Page<>(pageNum, pageSize), queryWrapper);
+            teamList = teamPage.getRecords();
+            resultPage = new Page<>(teamPage.getCurrent(), teamPage.getSize(), teamPage.getTotal());
+        } else {
+            teamList = this.list(queryWrapper);
+            resultPage = new Page<>(1, teamList.size(), teamList.size());
+        }
         if (CollectionUtils.isEmpty(teamList)) {
-            return new ArrayList<>();
+            resultPage.setRecords(new ArrayList<>());
+            return resultPage;
         }
         // 批量查询创建人信息，避免 N+1
         Set<Long> userIdSet = teamList.stream()
@@ -229,7 +264,8 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             }
             teamUserVOList.add(teamUserVO);
         }
-        return teamUserVOList;
+        resultPage.setRecords(teamUserVOList);
+        return resultPage;
     }
 
     @Override

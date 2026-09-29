@@ -115,12 +115,14 @@ public class UserController {
     }
 
     @PostMapping("/search/tag")
-    public BaseResponse<List<User>> searchUsersByTags(@RequestParam(required = false) List<String> tagNameList) {
+    public BaseResponse<Page<User>> searchUsersByTags(@RequestParam(required = false) List<String> tagNameList,
+                                                      @RequestParam(defaultValue = "1") long pageNum,
+                                                      @RequestParam(defaultValue = "12") long pageSize) {
         if(CollectionUtils.isEmpty(tagNameList)){
             return  ResultUtils.error(ErrorCode.PARAMS_ERROR);
         }
-        List<User> userList = userService.searchUsersByTags(tagNameList);
-        return ResultUtils.success(userList);
+        Page<User> userPage = userService.searchUsersByTags(tagNameList, pageNum, pageSize);
+        return ResultUtils.success(userPage);
     }
 
     @PostMapping("/update")

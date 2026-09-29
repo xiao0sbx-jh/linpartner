@@ -31,10 +31,19 @@ export async function getTeamById(id) {
 
 /**
  * 分页查询队伍列表
+ * 返回结构：{ records, total, current, size }
  * @param {object} params 支持 name/description/searchText/maxNum/status/pageNum/pageSize
  */
 export async function listTeams(params = {}) {
   return request.get('/team/list', { params });
+}
+
+/**
+ * 查询单个队伍（不受分页影响）
+ * 用于队伍详情页，避免因为没有分页参数而查不到数据
+ */
+export async function listTeamsById(id) {
+  return request.get('/team/list', { params: { id, pageNum: 1, pageSize: 1 } });
 }
 
 /**

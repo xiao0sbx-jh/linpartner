@@ -1,6 +1,7 @@
 package com.xlingsbx.linbackendmaster.service;
 
 import com.xlingsbx.linbackendmaster.model.domain.User;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import javax.servlet.http.HttpServletRequest;
@@ -28,7 +29,7 @@ public interface UserService extends IService<User> {
 
     boolean isAdmin(User loginUser);
 
-    List<User> searchUsersByTags(List<String> tagNameList);
+    Page<User> searchUsersByTags(List<String> tagNameList, long pageNum, long pageSize);
 
     List<User> matchUsers(long num, User loginuser);
 }

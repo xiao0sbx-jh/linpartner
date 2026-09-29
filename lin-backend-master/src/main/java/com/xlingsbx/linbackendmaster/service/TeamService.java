@@ -1,5 +1,6 @@
 package com.xlingsbx.linbackendmaster.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.xlingsbx.linbackendmaster.model.domain.Team;
 import com.xlingsbx.linbackendmaster.model.domain.User;
@@ -22,6 +23,11 @@ public interface TeamService extends IService<Team> {
 
 
     List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin);
+
+    /**
+     * 分页查询队伍，用于队伍广场，避免一次返回上千条数据
+     */
+    Page<TeamUserVO> listTeamsByPage(TeamQuery teamQuery, boolean isAdmin);
 
     boolean updateTeam(TeamUpdateRequest teamUpdateRequest, User loginUser);
 

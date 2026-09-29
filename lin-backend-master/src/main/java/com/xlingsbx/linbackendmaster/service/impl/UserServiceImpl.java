@@ -1,6 +1,7 @@
 package com.xlingsbx.linbackendmaster.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -43,6 +44,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      * 盐值,混淆密码
      */
     private static final String SALT = "xiaoling";
+
+    /**
+     * 单页最大条数，防止前端传入超大 pageSize 拖垮数据库
+     */
+    private static final long MAX_PAGE_SIZE = 50;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword, String planetCode) {
@@ -182,16 +188,26 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      * @return
      */
     @Override
-    public List<User> searchUsersByTags(List<String> tagNameList) {
+    public Page<User> searchUsersByTags(List<String> tagNameList, long pageNum, long pageSize) {
         if (CollectionUtils.isEmpty(tagNameList)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 1. 先查询所有用户
+        // 1. 先在数据库层用 LIKE 粗筛，减少进入内存的用户量
+        //    标签存的是 JSON 字符串，这里用 and 连接多个 LIKE，
+        //    保证每个标签都出现在 tags 里（粗筛，可能有极少量误判，下面还会精筛）
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.isNotNull("tags");
+        queryWrapper.ne("tags", "");
+        for (String tagName : tagNameList) {
+            if (StringUtils.isNotBlank(tagName)) {
+                queryWrapper.like("tags", tagName);
+            }
+        }
+        // 2. 内存中精筛：解析 JSON 后逐个比对，避免 LIKE 的误判
+        //    （例如搜 "Java" 会命中 "JavaScript"）
         List<User> userList = userMapper.selectList(queryWrapper);
         Gson gson = new Gson();
-        // 2. 在内存中判断是否包含要求的标签
-        return userList.stream().filter(user -> {
+        List<User> matchedList = userList.stream().filter(user -> {
             String tagsStr = user.getTags();
             Set<String> tempTagNameSet = gson.fromJson(tagsStr, new TypeToken<Set<String>>() {
             }.getType());
@@ -202,7 +218,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 }
             }
             return true;
-        }).map(this::getSafetyUser).collect(Collectors.toList());
+        }).collect(Collectors.toList());
+        // 3. 内存分页，返回统一的 Page 结构，避免一次把上万条数据传给前端
+        long safePageNum = Math.max(pageNum, 1);
+        long safePageSize = Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
+        int fromIndex = (int) Math.min((safePageNum - 1) * safePageSize, matchedList.size());
+        int toIndex = (int) Math.min(fromIndex + safePageSize, matchedList.size());
+        List<User> pageRecords = matchedList.subList(fromIndex, toIndex)
+                .stream()
+                .map(this::getSafetyUser)
+                .collect(Collectors.toList());
+        Page<User> page = new Page<>(safePageNum, safePageSize, matchedList.size());
+        page.setRecords(pageRecords);
+        return page;
     }
 
     /**

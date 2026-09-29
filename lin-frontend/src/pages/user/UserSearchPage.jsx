@@ -1,32 +1,61 @@
-import React, { useState } from 'react';
-import { Select, Button, Row, Col, Empty, Card, Spin, Typography } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Select, Button, Row, Col, Empty, Card, Spin, Typography, Pagination } from 'antd';
 import { searchUsersByTags } from '../../api/user';
 import { PRESET_TAGS } from '../../constants';
 import UserCard from '../../components/UserCard';
 
 const { Title, Text } = Typography;
 
+const PAGE_SIZE = 12;
+
 /**
  * 找伙伴：按标签搜索用户
- * 后端要求标签是全匹配（AND），即用户必须包含所有选中的标签
+ *
+ * 后端要求标签是全匹配（AND），即用户必须包含所有选中的标签。
+ * 数据量大时必须分页：搜「Java」可能命中上万人，
+ * 一次性返回和渲染会让页面卡死。
  */
 export default function UserSearchPage() {
   const [tags, setTags] = useState([]);
   const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [pageNum, setPageNum] = useState(1);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
-  const handleSearch = async () => {
+  const doSearch = useCallback(
+    async (page) => {
+      setLoading(true);
+      try {
+        const res = await searchUsersByTags(tags, page, PAGE_SIZE);
+        setUsers(res.data?.records ?? []);
+        setTotal(res.data?.total ?? 0);
+      } catch (e) {
+        setUsers([]);
+        setTotal(0);
+      } finally {
+        setLoading(false);
+        setSearched(true);
+      }
+    },
+    [tags],
+  );
+
+  // 翻页时重新查询
+  useEffect(() => {
+    if (searched && tags.length > 0) {
+      doSearch(pageNum);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageNum]);
+
+  const handleSearch = () => {
     if (tags.length === 0) return;
-    setLoading(true);
-    try {
-      const res = await searchUsersByTags(tags);
-      setUsers(res.data ?? []);
-    } catch (e) {
-      setUsers([]);
-    } finally {
-      setLoading(false);
-      setSearched(true);
+    // 已经在第一页就直接查，否则改了页码会触发上面的 useEffect
+    if (pageNum === 1) {
+      doSearch(1);
+    } else {
+      setPageNum(1);
     }
   };
 
@@ -50,6 +79,11 @@ export default function UserSearchPage() {
             搜索
           </Button>
         </div>
+        {searched && total > 0 && (
+          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 12 }}>
+            共找到 {total} 位用户
+          </Text>
+        )}
       </Card>
 
       <Spin spinning={loading}>
@@ -72,6 +106,19 @@ export default function UserSearchPage() {
           )
         )}
       </Spin>
+
+      {total > PAGE_SIZE && (
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <Pagination
+            current={pageNum}
+            pageSize={PAGE_SIZE}
+            total={total}
+            onChange={setPageNum}
+            showSizeChanger={false}
+            showQuickJumper
+          />
+        </div>
+      )}
     </div>
   );
 }

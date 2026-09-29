@@ -99,15 +99,16 @@ public class TeamController {
     }
 
     @GetMapping("/list")
-    public BaseResponse<List<TeamUserVO>> listTeams(TeamQuery teamQuery, HttpServletRequest request) {
+    public BaseResponse<Page<TeamUserVO>> listTeams(TeamQuery teamQuery, HttpServletRequest request) {
         if (teamQuery == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         boolean isAdmin = userService.isAdmin(request);
-        // 1、查询队伍列表
-        List<TeamUserVO> teamList = teamService.listTeams(teamQuery, isAdmin);
+        // 1、分页查询队伍列表（避免一次把上千条数据全部返回给前端）
+        Page<TeamUserVO> teamPage = teamService.listTeamsByPage(teamQuery, isAdmin);
+        List<TeamUserVO> teamList = teamPage.getRecords();
         if (CollectionUtils.isEmpty(teamList)) {
-            return ResultUtils.success(new ArrayList<>());
+            return ResultUtils.success(teamPage);
         }
         final List<Long> teamIdList = teamList.stream().map(TeamUserVO::getId).collect(Collectors.toList());
         // 2、判断当前用户是否已加入队伍
@@ -133,7 +134,7 @@ public class TeamController {
         // 队伍 id => 加入这个队伍的用户列表
         Map<Long, List<UserTeam>> teamIdUserTeamList = userTeamList.stream().collect(Collectors.groupingBy(UserTeam::getTeamId));
         teamList.forEach(team -> team.setHasJoinNum(teamIdUserTeamList.getOrDefault(team.getId(), new ArrayList<>()).size()));
-        return ResultUtils.success(teamList);
+        return ResultUtils.success(teamPage);
     }
 
 
