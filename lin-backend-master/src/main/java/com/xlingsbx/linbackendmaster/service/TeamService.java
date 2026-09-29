@@ -5,6 +5,7 @@ import com.xlingsbx.linbackendmaster.model.domain.Team;
 import com.xlingsbx.linbackendmaster.model.domain.User;
 import com.xlingsbx.linbackendmaster.model.dto.TeamQuery;
 import com.xlingsbx.linbackendmaster.model.request.TeamJoinRequest;
+import com.xlingsbx.linbackendmaster.model.request.TeamQuitRequest;
 import com.xlingsbx.linbackendmaster.model.request.TeamUpdateRequest;
 import com.xlingsbx.linbackendmaster.model.vo.TeamUserVO;
 
@@ -25,4 +26,8 @@ public interface TeamService extends IService<Team> {
     boolean updateTeam(TeamUpdateRequest teamUpdateRequest, User loginUser);
 
     boolean joinTeam(TeamJoinRequest teamJoinRequest, User loginUser);
+
+    boolean deleteTeam(long id, User loginUser);
+
+    boolean quitTeam(TeamQuitRequest teamQuitRequest, User loginUser);
 }
